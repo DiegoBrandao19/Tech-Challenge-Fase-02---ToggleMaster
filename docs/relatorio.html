@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatório de Entrega – ToggleMaster Fase 02</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root{
+    --ink:#1b2430; --muted:#5b6675; --line:#e3e8ef; --soft:#f5f7fa;
+    --brand:#1f4fd8; --brand-dark:#16349a; --accent:#0e9f6e; --warn:#b45309; --warn-bg:#fff7e6;
+  }
+  *{box-sizing:border-box}
+  body{font-family:"DejaVu Sans","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:9.6pt;line-height:1.5;margin:0}
+  header{background:linear-gradient(120deg,var(--brand-dark),var(--brand));color:#fff;border-radius:10px;padding:18px 22px;margin-bottom:14px}
+  header .eyebrow{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;opacity:.8}
+  header h1{font-size:19pt;margin:4px 0 2px;line-height:1.2}
+  header p{margin:0;font-size:10pt;opacity:.92}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{border:1px solid var(--line);border-radius:8px;padding:10px 13px;background:#fff}
+  .card h3{margin:0 0 6px;font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+  .kv{display:grid;grid-template-columns:78px 1fr;gap:3px 8px;font-size:9.4pt}
+  .kv b{color:var(--muted);font-weight:600}
+  .todo{background:var(--warn-bg);color:var(--warn);border:1px dashed #e6b866;border-radius:4px;padding:0 5px;font-weight:600}
+  a,.link{color:var(--brand);text-decoration:none;word-break:break-all}
+  h2{font-size:12.5pt;margin:16px 0 6px;color:var(--brand-dark);display:flex;align-items:center;gap:8px;break-after:avoid}
+  h2 .n{background:var(--brand);color:#fff;border-radius:50%;width:20px;height:20px;font-size:9pt;display:inline-flex;align-items:center;justify-content:center}
+  p{margin:4px 0}
+  ul{margin:4px 0 4px 16px;padding:0} li{margin:2px 0}
+  table{width:100%;border-collapse:collapse;font-size:9pt;margin:6px 0}
+  tr{break-inside:avoid}
+  th{background:var(--soft);text-align:left;color:var(--muted);font-size:8pt;text-transform:uppercase;letter-spacing:.06em}
+  th,td{padding:5px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  td:first-child{font-weight:600;white-space:nowrap}
+  code,.mono{font-family:"DejaVu Sans Mono",monospace;font-size:8.4pt;background:var(--soft);padding:1px 4px;border-radius:3px}
+  .flow{display:flex;align-items:center;flex-wrap:wrap;gap:5px;font-size:8.6pt;margin:8px 0;break-inside:avoid}
+  .flow span{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-weight:600}
+  .flow i{color:var(--muted);font-style:normal}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0;break-inside:avoid}
+  .metric{border:1px solid var(--line);border-radius:8px;padding:9px 6px;text-align:center}
+  .metric .v{font-size:15pt;font-weight:700;color:var(--accent);line-height:1.1}
+  .metric .l{font-size:7.6pt;color:var(--muted);margin-top:3px}
+  .note{background:var(--soft);border-left:3px solid var(--brand);padding:7px 11px;border-radius:0 6px 6px 0;margin:8px 0;break-inside:avoid}
+  ol{margin:4px 0 4px 18px;padding:0} ol li{margin:4px 0}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px 13px;font-size:8.2pt;line-height:1.55;margin:6px 0;break-inside:avoid;white-space:pre-wrap}
+  pre .c{color:#94a3b8}
+  footer{margin-top:14px;padding-top:8px;border-top:1px solid var(--line);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">POSTECH · FIAP — Tech Challenge Fase 02 · Entrega individual</div>
+  <h1>ToggleMaster: containerização e orquestração em Kubernetes</h1>
+  <p>5 microsserviços no Amazon EKS, com RDS, ElastiCache, DynamoDB, SQS e autoscaling por HPA</p>
+</header>
+
+<div class="grid">
+  <div class="card">
+    <h3>Identificação</h3>
+    <div class="kv">
+      <b>Nome</b><span>Diego Barbosa Brandão Rocha</span>
+      <b>RM</b><span>375936</span>
+      <b>Discord</b><span>coddp</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Links da entrega</h3>
+    <div class="kv">
+      <b>Código</b><span class="todo">LINK DO REPOSITÓRIO GITHUB</span>
+      <b>Vídeo</b><span class="todo">LINK DO VÍDEO (até 20 min)</span>
+      <b>Originais</b><span class="link">github.com/FIAP-TCs</span>
+    </div>
+  </div>
+</div>
+
+<h2><span class="n">1</span>Resumo da solução</h2>
+<p>Os cinco microsserviços do ToggleMaster (auth, flag, targeting, evaluation e analytics) foram conteinerizados, validados localmente com Docker Compose e publicados em um cluster Amazon EKS, com autoscaling por HPA validado sob carga.</p>
+<div class="flow">
+  <span>Cliente</span><i>→</i><span>Nginx Ingress (NLB)</span><i>→</i><span>evaluation-service</span><i>→</i><span>Redis · flag · targeting</span>
+</div>
+<div class="flow">
+  <span>evaluation-service</span><i>→</i><span>Fila SQS</span><i>→</i><span>analytics-service</span><i>→</i><span>DynamoDB</span>
+</div>
+
+<h2><span class="n">2</span>Conteinerização</h2>
+<ul>
+  <li><b>Dockerfiles multi-stage</b> nos 5 serviços. Go (auth, evaluation): build em <code>golang:1.22-alpine</code> e imagem final <code>distroless/static nonroot</code>. Python (flag, targeting, analytics): dependências em estágio separado, imagem final <code>python:3.11-slim</code>, usuário não-root (uid 10001) e gunicorn.</li>
+  <li><b>docker-compose.yml:</b> 5 aplicações + 2 PostgreSQL + Redis + DynamoDB Local (9 contêineres). Um override adiciona o ElasticMQ como emulador de SQS, para rodar sem conta AWS.</li>
+  <li><b>Validação local de ponta a ponta:</b> criação de chave de API, flag e regra, avaliação e gravação do evento no DynamoDB Local.</li>
+</ul>
+
+<h2><span class="n">3</span>Infraestrutura na AWS</h2>
+<p style="color:var(--muted)">AWS Academy Learner Lab · região us-east-1 · LabRole</p>
+<table>
+  <tr><th>Recurso</th><th>Configuração</th></tr>
+  <tr><td>EKS</td><td>Cluster <code>togglemaster</code> (Kubernetes 1.37), node group gerenciado <code>tm-nodes</code>: 2 × t3.medium (mín. 1, desejado 2, máx. 4)</td></tr>
+  <tr><td>ECR</td><td>5 repositórios (um por serviço), imagens com a tag <code>v1</code></td></tr>
+  <tr><td>RDS PostgreSQL</td><td>3 instâncias: <code>tm-auth</code>, <code>tm-flags</code>, <code>tm-targeting</code> (db.t3.micro)</td></tr>
+  <tr><td>ElastiCache</td><td>1 cluster Redis <code>tm-redis</code> (cache.t3.micro)</td></tr>
+  <tr><td>DynamoDB</td><td>Tabela <code>ToggleMasterAnalytics</code>, chave de partição <code>event_id</code> (String)</td></tr>
+  <tr><td>SQS</td><td>Fila Standard <code>togglemaster-queue</code></td></tr>
+  <tr><td>Rede</td><td>Security Group dos dados libera 5432 e 6379 apenas a partir do Security Group do cluster</td></tr>
+  <tr><td>Entrada</td><td>Metrics Server (add-on) e Nginx Ingress (Helm) com Network Load Balancer</td></tr>
+</table>
+
+<h2><span class="n">4</span>Kubernetes</h2>
+<ul>
+  <li><b>5 Namespaces</b>, um por serviço (auth, flags, targeting, evaluation, analytics).</li>
+  <li><b>Deployments</b> com imagem do ECR, requests/limits de CPU e memória e probes de readiness e liveness (<code>/health</code>).</li>
+  <li><b>Services</b> ClusterIP, <b>ConfigMaps</b> e <b>Secrets</b> em base64. Os valores reais são gerados por script a partir de variáveis de ambiente e não ficam no repositório.</li>
+  <li><b>Ingress (Nginx)</b> com as rotas <code>/auth</code>, <code>/flags</code>, <code>/targeting</code> e <code>/evaluate</code>.</li>
+  <li><b>Jobs</b> de inicialização dos três bancos RDS (<code>CREATE TABLE IF NOT EXISTS</code>).</li>
+  <li><b>Scripts:</b> <code>build-push.sh</code>, <code>gen-secrets.sh</code>, <code>deploy.sh</code> e <code>aws-academy-infra.sh</code>.</li>
+</ul>
+
+<h2><span class="n">5</span>Escalabilidade (HPA)</h2>
+<table>
+  <tr><th>Serviço</th><th>Métrica</th><th>Alvo</th><th>Réplicas</th></tr>
+  <tr><td>evaluation-service</td><td>CPU</td><td>70%</td><td>mín. 2 · máx. 6</td></tr>
+  <tr><td>analytics-service</td><td>CPU</td><td>50%</td><td>mín. 1 · máx. 5</td></tr>
+</table>
+<div class="note"><b>Opção A (AWS Academy).</b> O KEDA exigiria um role IAM (IRSA) para ler a profundidade da fila SQS, o que o Learner Lab não permite (somente a LabRole). Foi usado HPA por CPU: com a fila cheia, o analytics processa mais mensagens, a CPU sobe e o HPA escala.</div>
+
+<p><b>Teste de carga</b> (<code>hey</code>, 3 min, 100 conexões simultâneas, endpoint <code>/evaluate</code>):</p>
+<div class="metrics">
+  <div class="metric"><div class="v">119.431</div><div class="l">requisições, todas com status 200</div></div>
+  <div class="metric"><div class="v">663</div><div class="l">requisições por segundo</div></div>
+  <div class="metric"><div class="v">144 ms</div><div class="l">latência mediana (p99: 258 ms)</div></div>
+  <div class="metric"><div class="v">74 mil+</div><div class="l">eventos gravados no DynamoDB</div></div>
+</div>
+<ul>
+  <li><b>evaluation-service:</b> de 2 para 6 réplicas, com a CPU em cerca de 494% do alvo.</li>
+  <li><b>analytics-service:</b> escalou ao máximo de 5 réplicas (CPU em ~594% do alvo) para drenar a fila, que chegou a mais de 50 mil mensagens pendentes.</li>
+</ul>
+
+<h2><span class="n">6</span>Escolha dos bancos</h2>
+<table>
+  <tr><th>Serviço de dados</th><th>Usado por</th><th>Motivo</th></tr>
+  <tr><td>RDS PostgreSQL</td><td>auth, flag, targeting</td><td>Dados relacionais e transacionais com esquema definido; um banco por microsserviço.</td></tr>
+  <tr><td>ElastiCache Redis</td><td>evaluation</td><td>Cache de leitura de baixa latência no caminho crítico, com TTL, evitando consultar flag e targeting a cada requisição.</td></tr>
+  <tr><td>DynamoDB</td><td>analytics</td><td>Alto volume de escrita de eventos, sem esquema fixo e sem joins.</td></tr>
+</table>
+
+<h2><span class="n">7</span>Dificuldades encontradas e soluções</h2>
+<ol>
+  <li><b>Plano gratuito da conta pessoal:</b> não lançava instâncias t3.medium (tipo não elegível ao Free Tier) e os nós nunca subiam. Migração para o AWS Academy.</li>
+  <li><b>EKS Auto Mode:</b> o cluster nasceu com o Auto Mode, que criou um acesso do tipo <code>EC2</code> para a LabRole, e os nós gerenciados não conseguiam se registrar. Solução: desligar o Auto Mode, instalar os add-ons (vpc-cni, kube-proxy, coredns, metrics-server) e recriar o acesso como <code>EC2_LINUX</code>.</li>
+  <li><b>Credenciais sem IRSA:</b> os pods não encontravam credenciais AWS porque o IMDS dos nós tinha hop limit 1. Solução: aumentar para 2, e os pods passaram a usar a LabRole do nó.</li>
+  <li><b>Código-fonte original:</b> erros de build (imports não usados em Go, go.mod inválido, dependências incompatíveis e endpoint do SQS fixo), corrigidos para compilar e permitir um emulador de SQS local.</li>
+  <li><b>Compatibilidade de versões:</b> Werkzeug fixado em 2.2.3 e boto3 em 1.34.162.</li>
+</ol>
+
+<h2><span class="n">8</span>Como reproduzir</h2>
+<p>Detalhes em <code>docs/GUIA-FASE2.md</code>. Resumo:</p>
+<pre><span class="c"># 1) fila SQS e tabela DynamoDB</span>
+./scripts/aws-academy-infra.sh base
+<span class="c"># 2) criar o cluster EKS e o node group (Console)</span>
+<span class="c"># 3) RDS ×3 e ElastiCache</span>
+./scripts/aws-academy-infra.sh data
+<span class="c"># 4) imagens no ECR, Nginx Ingress via Helm e deploy</span>
+./scripts/build-push.sh
+kubectl apply -f k8s/00-namespaces.yaml
+./scripts/gen-secrets.sh
+./scripts/deploy.sh</pre>
+<p style="color:var(--muted);font-size:8.6pt">Após a gravação do vídeo, os recursos da AWS devem ser removidos para evitar consumo de créditos (<code>aws-academy-infra.sh destroy</code>, exclusão do node group, do cluster EKS e dos repositórios ECR).</p>
+
+<footer><span>Diego Barbosa Brandão Rocha · Tech Challenge Fase 02</span><span>POSTECH / FIAP</span></footer>
+</body>
+</html>

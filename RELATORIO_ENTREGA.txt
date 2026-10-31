@@ -1,0 +1,144 @@
+TECH CHALLENGE - FASE 02 - POSTECH/FIAP
+ToggleMaster - Containerizacao e Orquestracao em Kubernetes (AWS EKS)
+Entrega individual
+
+======================================================================
+IDENTIFICACAO
+======================================================================
+Participante : Diego Barbosa Brandao Rocha
+RM           : 375936
+Discord      : coddp
+
+Repositorio do codigo (Dockerfiles, docker-compose, manifestos K8s, scripts, guia):
+<LINK DO REPOSITORIO GITHUB>
+
+Repositorios originais dos microsservicos: https://github.com/FIAP-TCs
+
+Video de demonstracao (ate 20 min):
+<LINK DO VIDEO>
+
+======================================================================
+1. RESUMO DA SOLUCAO
+======================================================================
+Os 5 microsservicos do ToggleMaster (auth, flag, targeting, evaluation e
+analytics) foram conteinerizados, validados localmente com Docker Compose e
+publicados em um cluster Amazon EKS, com autoscaling por HPA.
+
+Fluxo da aplicacao:
+  cliente -> Nginx Ingress (NLB) -> evaluation-service
+           -> Redis (cache) / flag-service / targeting-service
+  evaluation-service -> fila SQS -> analytics-service -> DynamoDB
+
+======================================================================
+2. CONTEINERIZACAO
+======================================================================
+- Dockerfiles multi-stage para os 5 servicos.
+  * Go (auth, evaluation): build em golang:1.22-alpine, imagem final
+    distroless/static nonroot.
+  * Python (flag, targeting, analytics): build das dependencias em estagio
+    separado, imagem final python:3.11-slim, usuario nao-root (uid 10001),
+    execucao com gunicorn.
+- .dockerignore em cada servico.
+- docker-compose.yml: 5 aplicacoes + 2 PostgreSQL + Redis + DynamoDB Local
+  (9 conteineres), com job de criacao da tabela local. Para rodar sem conta
+  AWS, o arquivo docker-compose.local-sqs.yml adiciona o ElasticMQ como
+  emulador de SQS.
+- Validacao local de ponta a ponta: criacao de chave de API, flag e regra,
+  avaliacao e gravacao do evento no DynamoDB Local.
+
+======================================================================
+3. INFRAESTRUTURA NA AWS (AWS Academy Learner Lab, us-east-1, LabRole)
+======================================================================
+- EKS: cluster "togglemaster" (Kubernetes 1.37) com node group gerenciado
+  "tm-nodes": 2 x t3.medium (minimo 1, desejado 2, maximo 4).
+- ECR: 5 repositorios (auth-service, flag-service, targeting-service,
+  evaluation-service, analytics-service), imagens com a tag v1.
+- RDS PostgreSQL: 3 instancias (tm-auth, tm-flags, tm-targeting), db.t3.micro.
+- ElastiCache: 1 cluster Redis (tm-redis), cache.t3.micro.
+- DynamoDB: tabela ToggleMasterAnalytics (chave de particao event_id, String).
+- SQS: fila Standard togglemaster-queue.
+- Seguranca de rede: Security Group dos dados libera 5432 (PostgreSQL) e
+  6379 (Redis) apenas a partir do Security Group do cluster.
+- Metrics Server (add-on do EKS) e Nginx Ingress Controller (Helm), com um
+  Network Load Balancer como ponto de entrada.
+
+======================================================================
+4. KUBERNETES
+======================================================================
+- 5 Namespaces, um por servico (auth, flags, targeting, evaluation, analytics).
+- Deployments com imagem do ECR, requests/limits de CPU e memoria e probes de
+  readiness e liveness (/health).
+- Services do tipo ClusterIP.
+- ConfigMaps (variaveis nao sensiveis e URLs internas) e Secrets em base64
+  (strings de conexao, MASTER_KEY, chave de servico, URL da fila). Os valores
+  reais sao gerados por script a partir de variaveis de ambiente e nao ficam
+  no repositorio.
+- Ingress (Nginx): /auth, /flags, /targeting e /evaluate.
+- Jobs de inicializacao dos tres bancos RDS (CREATE TABLE IF NOT EXISTS).
+- Scripts: build-push.sh (ECR), gen-secrets.sh, deploy.sh e
+  aws-academy-infra.sh (SQS, DynamoDB, RDS, ElastiCache e limpeza).
+
+======================================================================
+5. ESCALABILIDADE (HPA)
+======================================================================
+- evaluation-service: HPA por CPU, alvo 70%, minimo 2 e maximo 6 replicas.
+- analytics-service: HPA por CPU, alvo 50%, minimo 1 e maximo 5 replicas.
+- Decisao (Opcao A - AWS Academy): o KEDA exigiria um role IAM (IRSA) para ler
+  a profundidade da fila SQS, o que o Learner Lab nao permite (somente a
+  LabRole). Foi usado HPA por CPU: com a fila cheia o analytics processa mais
+  mensagens, a CPU sobe e o HPA escala.
+
+Teste de carga (hey, 3 min, 100 conexoes simultaneas, endpoint /evaluate):
+- 119.431 requisicoes, todas com status 200, a cerca de 663 requisicoes/s.
+- Latencia: mediana de 144 ms, p99 de 258 ms.
+- evaluation-service escalou de 2 para 6 replicas (CPU ~494% do alvo).
+- A carga encheu a fila SQS (mais de 50 mil mensagens pendentes) e o
+  analytics-service escalou ate o maximo de 5 replicas (CPU ~594% do alvo)
+  drenando a fila.
+- Mais de 74 mil eventos gravados na tabela DynamoDB durante o teste, com a
+  contagem continuando a crescer.
+
+======================================================================
+6. ESCOLHA DOS BANCOS
+======================================================================
+- RDS PostgreSQL (auth, flags, targeting): dados relacionais e transacionais
+  com esquema definido; um banco por microsservico.
+- ElastiCache Redis (evaluation): cache de leitura de baixa latencia no
+  caminho critico, com TTL, evitando consultar flag e targeting a cada
+  requisicao.
+- DynamoDB (analytics): alto volume de escrita de eventos, sem esquema fixo e
+  sem joins.
+
+======================================================================
+7. DIFICULDADES ENCONTRADAS E SOLUCOES
+======================================================================
+1. Conta pessoal (plano gratuito) nao lancava instancias t3.medium (tipo nao
+   elegivel ao Free Tier), e os nos nunca subiam. Migracao para o AWS Academy.
+2. O cluster foi criado com o EKS Auto Mode ligado, que criou um acesso do tipo
+   EC2 para a LabRole, e os nos gerenciados nao conseguiam se registrar.
+   Solucao: desligar o Auto Mode, instalar os add-ons (vpc-cni, kube-proxy,
+   coredns, metrics-server) e recriar o acesso da LabRole como EC2_LINUX.
+3. Sem IRSA, os pods nao encontravam credenciais AWS: o IMDS dos nos tinha hop
+   limit 1, bloqueando os conteineres. Solucao: aumentar para 2. Os pods usam
+   a LabRole do no.
+4. O codigo-fonte original apresentava erros de build (imports nao usados em
+   Go, go.mod invalido, dependencias incompativeis, endpoint do SQS fixo).
+   Foram corrigidos para compilar e permitir o uso de um emulador de SQS local.
+5. Compatibilidade de versoes: Werkzeug fixado em 2.2.3 e boto3 em 1.34.162.
+
+======================================================================
+8. COMO REPRODUZIR
+======================================================================
+Ver docs/GUIA-FASE2.md. Resumo:
+  ./scripts/aws-academy-infra.sh base     # SQS e DynamoDB
+  (criar o cluster EKS e o node group)
+  ./scripts/aws-academy-infra.sh data     # RDS x3 e ElastiCache
+  ./scripts/build-push.sh                 # imagens no ECR
+  (instalar o Nginx Ingress via Helm)
+  kubectl apply -f k8s/00-namespaces.yaml
+  ./scripts/gen-secrets.sh
+  ./scripts/deploy.sh
+
+Apos a gravacao do video, os recursos da AWS devem ser removidos para evitar
+consumo de creditos (aws-academy-infra.sh destroy, exclusao do node group, do
+cluster EKS e dos repositorios ECR).

@@ -1,0 +1,27 @@
+# Override para rodar 100% local, sem conta AWS: adiciona ElasticMQ (emulador de SQS).
+# Uso: docker compose -f docker-compose.yml -f docker-compose.local-sqs.yml up -d --build
+services:
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    volumes:
+      - ./local/elasticmq.conf:/opt/elasticmq.conf:ro
+    ports:
+      - "9324:9324"
+
+  evaluation-service:
+    environment:
+      AWS_SQS_URL: http://elasticmq:9324/000000000000/togglemaster-queue
+      AWS_ENDPOINT_URL_SQS: http://elasticmq:9324
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      elasticmq: { condition: service_started }
+
+  analytics-service:
+    environment:
+      AWS_SQS_URL: http://elasticmq:9324/000000000000/togglemaster-queue
+      AWS_ENDPOINT_URL_SQS: http://elasticmq:9324
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      elasticmq: { condition: service_started }

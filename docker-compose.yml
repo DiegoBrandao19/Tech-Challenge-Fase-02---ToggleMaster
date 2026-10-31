@@ -1,0 +1,148 @@
+# ToggleMaster - Fase 2 | 5 microsserviços + 4 data stores locais (9 contêineres)
+name: togglemaster
+
+x-aws-env: &aws-env
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_SQS_URL: ${AWS_SQS_URL}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+
+services:
+  # ---------------- Data stores (4) ----------------
+  postgres-auth:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: auth_db
+    volumes:
+      - pg-auth-data:/var/lib/postgresql/data
+      - ./auth-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./local/auth-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # 1 instância hospeda flags_db e targeting_db (=> 2 instâncias PostgreSQL no total)
+  postgres-flags:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: flags_db
+    volumes:
+      - pg-flags-data:/var/lib/postgresql/data
+      - ./flag-service/db/init.sql:/docker-entrypoint-initdb.d/01-flags.sql:ro
+      - ./local/02-targeting-db.sh:/docker-entrypoint-initdb.d/02-targeting-db.sh:ro
+      - ./targeting-service/db/init.sql:/sql/targeting-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d targeting_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "8010:8000"
+
+  # Job de uma execução: cria a tabela ToggleMasterAnalytics no DynamoDB Local
+  dynamodb-init:
+    image: amazon/aws-cli:latest
+    depends_on: [dynamodb-local]
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+        aws dynamodb create-table --endpoint-url http://dynamodb-local:8000
+        --table-name ToggleMasterAnalytics
+        --attribute-definitions AttributeName=event_id,AttributeType=S
+        --key-schema AttributeName=event_id,KeyType=HASH
+        --billing-mode PAY_PER_REQUEST >/dev/null 2>&1 && echo "tabela criada" && exit 0;
+        sleep 2; done; echo "falha ao criar tabela"; exit 1
+    restart: "no"
+
+  # ---------------- Microsserviços (5) ----------------
+  auth-service:
+    build: ./auth-service
+    environment:
+      PORT: "8001"
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres-auth:5432/auth_db?sslmode=disable
+      MASTER_KEY: ${MASTER_KEY:-admin-secreto-123}
+    depends_on:
+      postgres-auth: { condition: service_healthy }
+    ports:
+      - "8001:8001"
+
+  flag-service:
+    build: ./flag-service
+    environment:
+      PORT: "8002"
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres-flags:5432/flags_db
+      AUTH_SERVICE_URL: http://auth-service:8001
+    depends_on:
+      postgres-flags: { condition: service_healthy }
+      auth-service: { condition: service_started }
+    ports:
+      - "8002:8002"
+
+  targeting-service:
+    build: ./targeting-service
+    environment:
+      PORT: "8003"
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres-flags:5432/targeting_db
+      AUTH_SERVICE_URL: http://auth-service:8001
+    depends_on:
+      postgres-flags: { condition: service_healthy }
+      auth-service: { condition: service_started }
+    ports:
+      - "8003:8003"
+
+  evaluation-service:
+    build: ./evaluation-service
+    environment:
+      <<: *aws-env
+      PORT: "8004"
+      REDIS_URL: redis://redis:6379
+      FLAG_SERVICE_URL: http://flag-service:8002
+      TARGETING_SERVICE_URL: http://targeting-service:8003
+      SERVICE_API_KEY: tm_key_local_dev_evaluation_service   # semeada em local/auth-seed.sql
+    depends_on:
+      redis: { condition: service_healthy }
+      flag-service: { condition: service_started }
+      targeting-service: { condition: service_started }
+    ports:
+      - "8004:8004"
+
+  analytics-service:
+    build: ./analytics-service
+    environment:
+      <<: *aws-env
+      PORT: "8005"
+      AWS_DYNAMODB_TABLE: ToggleMasterAnalytics
+      # boto3>=1.28 respeita endpoint por serviço: só o DynamoDB aponta para o local, SQS vai à AWS real
+      AWS_ENDPOINT_URL_DYNAMODB: http://dynamodb-local:8000
+    depends_on:
+      dynamodb-init: { condition: service_completed_successfully }
+    ports:
+      - "8005:8005"
+
+volumes:
+  pg-auth-data:
+  pg-flags-data:

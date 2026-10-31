@@ -1,0 +1,29 @@
+# Aplica db/init.sql no RDS. O ConfigMap targeting-service-db-init é criado por scripts/deploy.sh a partir de targeting-service/db/init.sql
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: targeting-service-db-init
+  namespace: targeting
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          command: ["sh", "-c", "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f /sql/init.sql"]
+          envFrom:
+            - secretRef:
+                name: targeting-service-secret
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+      volumes:
+        - name: sql
+          configMap:
+            name: targeting-service-db-init
