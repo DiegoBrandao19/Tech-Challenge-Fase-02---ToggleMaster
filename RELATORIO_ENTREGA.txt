@@ -10,12 +10,12 @@ RM           : 375936
 Discord      : coddp
 
 Repositorio do codigo (Dockerfiles, docker-compose, manifestos K8s, scripts, guia):
-<LINK DO REPOSITORIO GITHUB>
+https://github.com/DiegoBrandao19/Tech-Challenge-Fase-02---ToggleMaster
 
 Repositorios originais dos microsservicos: https://github.com/FIAP-TCs
 
 Video de demonstracao (ate 20 min):
-<LINK DO VIDEO>
+https://drive.google.com/file/d/1mqH5t_KD3duUJQ1pzlUIT-kIqB1e3VE-/view?usp=sharing
 
 ======================================================================
 1. RESUMO DA SOLUCAO
